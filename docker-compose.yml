@@ -45,7 +45,6 @@ services:
       - "127.0.0.1:6379:6379"
     volumes:
       - redis:/data
-
   db:
     env_file: docker/.env
     image: postgres:15
@@ -57,9 +56,10 @@ services:
       - db_home:/var/lib/postgresql/data
       - ./docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
 
-  superset:
+  superset:    
     env_file: docker/.env
-    image: *superset-image
+    build: .
+    # image: *superset-image
     container_name: superset_app
     command: ["/app/docker/docker-bootstrap.sh", "app"]
     restart: unless-stopped
@@ -100,7 +100,8 @@ services:
       - REDIS_SSL=false
 
   superset-init:
-    image: *superset-image
+    build: .
+    # image: *superset-image
     container_name: superset_init
     command: ["/app/docker/docker-init.sh"]
     env_file: docker/.env
@@ -121,7 +122,8 @@ services:
     volumes: *superset-volumes
 
   superset-worker:
-    image: *superset-image
+    build: .
+    # image: *superset-image
     container_name: superset_worker
     command: ["/app/docker/docker-bootstrap.sh", "worker"]
     env_file: docker/.env
@@ -136,7 +138,8 @@ services:
     # mem_reservation: 128M
 
   superset-worker-beat:
-    image: *superset-image
+    build: .
+    # image: *superset-image
     container_name: superset_worker_beat
     command: ["/app/docker/docker-bootstrap.sh", "beat"]
     env_file: docker/.env
@@ -148,7 +151,8 @@ services:
       disable: true
 
   superset-tests-worker:
-    image: *superset-image
+    build: .
+    # image: *superset-image
     container_name: superset_tests_worker
     command: ["/app/docker/docker-bootstrap.sh", "worker"]
     env_file: docker/.env

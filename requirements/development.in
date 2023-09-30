@@ -25,3 +25,4 @@ pylint
 python-ldap>=3.4.3
 setuptools>=65.5.1
 sqloxide
+clickhouse-connect>=0.6.8
