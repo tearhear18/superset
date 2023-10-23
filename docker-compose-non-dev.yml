@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-x-superset-image: &superset-image apachesuperset.docker.scarf.sh/apache/superset:${TAG:-latest-dev}
+x-superset-image: &superset-image datafusion:v2 #apachesuperset.docker.scarf.sh/apache/superset:${TAG:-latest-dev}
 x-superset-depends-on: &superset-depends-on
-  - db
+  # - db
   - redis
 x-superset-volumes:
   &superset-volumes # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
@@ -25,6 +25,14 @@ x-superset-volumes:
 
 version: "3.7"
 services:
+  nginx:
+    image: nginx:latest
+    container_name: superset_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
   redis:
     image: redis:7
     container_name: superset_cache
@@ -32,14 +40,14 @@ services:
     volumes:
       - redis:/data
 
-  db:
-    env_file: docker/.env-non-dev
-    image: postgres:15
-    container_name: superset_db
-    restart: unless-stopped
-    volumes:
-      - db_home:/var/lib/postgresql/data
-      - ./docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+  # db:
+  #   env_file: docker/.env-non-dev
+  #   image: postgres:15
+  #   container_name: superset_db
+  #   restart: unless-stopped
+  #   volumes:
+  #     - db_home:/var/lib/postgresql/data
+  #     - ./docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
 
   superset:
     env_file: docker/.env-non-dev

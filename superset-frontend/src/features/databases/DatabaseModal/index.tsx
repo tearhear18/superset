@@ -1044,7 +1044,7 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
   const renderPreferredSelector = () => (
     <div className="preferred">
       {availableDbs?.databases
-        ?.filter((db: DatabaseForm) => db.preferred)
+        ?.filter((db: DatabaseForm) => db.preferred || !db.preferred)
         .map((database: DatabaseForm) => (
           <IconButton
             className="preferred-item"

@@ -236,7 +236,7 @@ SQLALCHEMY_ENCRYPTED_FIELD_TYPE_ADAPTER = (  # pylint: disable=invalid-name
 QUERY_SEARCH_LIMIT = 1000
 
 # Flask-WTF flag for CSRF
-WTF_CSRF_ENABLED = True
+WTF_CSRF_ENABLED = False
 
 # Add endpoints that need to be exempt from CSRF protection
 WTF_CSRF_EXEMPT_LIST = [
@@ -1412,7 +1412,7 @@ TEST_DATABASE_CONNECTION_TIMEOUT = timedelta(seconds=30)
 CONTENT_SECURITY_POLICY_WARNING = True
 
 # Do you want Talisman enabled?
-TALISMAN_ENABLED = utils.cast_to_boolean(os.environ.get("TALISMAN_ENABLED", True))
+TALISMAN_ENABLED = False #utils.cast_to_boolean(os.environ.get("TALISMAN_ENABLED", True))
 
 # If you want Talisman, how do you want it configured??
 TALISMAN_CONFIG = {
@@ -1465,7 +1465,7 @@ TALISMAN_DEV_CONFIG = {
 # See https://flask.palletsprojects.com/en/1.1.x/security/#set-cookie-options
 # for details
 #
-SESSION_COOKIE_HTTPONLY = True  # Prevent cookie from being read by frontend JS?
+SESSION_COOKIE_HTTPONLY = False  # Prevent cookie from being read by frontend JS?
 SESSION_COOKIE_SECURE = False  # Prevent cookie from being transmitted over non-tls?
 SESSION_COOKIE_SAMESITE: Literal["None", "Lax", "Strict"] | None = "Lax"
 
