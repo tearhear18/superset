@@ -1128,13 +1128,13 @@ FLASK_APP_MUTATOR = None
 
 # smtp server configuration
 EMAIL_NOTIFICATIONS = False  # all the emails are sent using dryrun
-SMTP_HOST = "localhost"
+SMTP_HOST = os.environ.get("SMTP_HOST")
 SMTP_STARTTLS = True
 SMTP_SSL = False
-SMTP_USER = "superset"
+SMTP_USER = os.environ.get("SMTP_USER")
 SMTP_PORT = 25
-SMTP_PASSWORD = "superset"
-SMTP_MAIL_FROM = "superset@superset.com"
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+SMTP_MAIL_FROM = os.environ.get("SMTP_MAIL_FROM")
 # If True creates a default SSL context with ssl.Purpose.CLIENT_AUTH using the
 # default system root CA certificates.
 SMTP_SSL_SERVER_AUTH = False
