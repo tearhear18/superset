@@ -184,7 +184,10 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY") or CHANGE_ME_SECRET_KEY
 
 # The SQLAlchemy connection string.
-SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(DATA_DIR, "superset.db")
+SQLALCHEMY_DATABASE_URI = (
+    f"""sqlite:///{os.path.join(DATA_DIR, "superset.db")}?check_same_thread=false"""
+)
+
 # SQLALCHEMY_DATABASE_URI = 'mysql://myapp@localhost/myapp'
 # SQLALCHEMY_DATABASE_URI = 'postgresql://root:password@localhost/myapp'
 
@@ -348,7 +351,7 @@ PUBLIC_ROLE_LIKE: str | None = None
 BABEL_DEFAULT_LOCALE = "en"
 # Your application default translation path
 BABEL_DEFAULT_FOLDER = "superset/translations"
-# The allowed translation for you app
+# The allowed translation for your app
 LANGUAGES = {
     "en": {"flag": "us", "name": "English"},
     "es": {"flag": "es", "name": "Spanish"},
@@ -500,6 +503,10 @@ DEFAULT_FEATURE_FLAGS: dict[str, bool] = {
     # returned from each database in the ``SUPERSET_META_DB_LIMIT`` configuration value
     # in this file.
     "ENABLE_SUPERSET_META_DB": False,
+    # Set to True to replace Selenium with Playwright to execute reports and thumbnails.
+    # Unlike Selenium, Playwright reports support deck.gl visualizations
+    # Enabling this feature flag requires installing "playwright" pip package
+    "PLAYWRIGHT_REPORTS_AND_THUMBNAILS": False,
 }
 
 # ------------------------------
@@ -675,6 +682,14 @@ SCREENSHOT_REPLACE_UNEXPECTED_ERRORS = False
 SCREENSHOT_WAIT_FOR_ERROR_MODAL_VISIBLE = 5
 # Max time to wait for error message modal to close, in seconds
 SCREENSHOT_WAIT_FOR_ERROR_MODAL_INVISIBLE = 5
+# Event that Playwright waits for when loading a new page
+# Possible values: "load", "commit", "domcontentloaded", "networkidle"
+# Docs: https://playwright.dev/python/docs/api/class-page#page-goto-option-wait-until
+SCREENSHOT_PLAYWRIGHT_WAIT_EVENT = "load"
+# Default timeout for Playwright browser context for all operations
+SCREENSHOT_PLAYWRIGHT_DEFAULT_TIMEOUT = int(
+    timedelta(seconds=30).total_seconds() * 1000
+)
 
 # ---------------------------------------------------
 # Image and file configuration
@@ -811,7 +826,7 @@ TIME_GRAIN_ADDON_EXPRESSIONS: dict[str, dict[str, str]] = {}
 
 # Map of custom time grains and artificial join column producers used
 # when generating the join key between results and time shifts.
-# See supeset/common/query_context_processor.get_aggregated_join_column
+# See superset/common/query_context_processor.get_aggregated_join_column
 #
 # Example of a join column producer that aggregates by fiscal year
 # def join_producer(row: Series, column_index: int) -> str:
@@ -925,24 +940,16 @@ CELERY_BEAT_SCHEDULER_EXPIRES = timedelta(weeks=1)
 
 class CeleryConfig:  # pylint: disable=too-few-public-methods
     broker_url = "sqla+sqlite:///celerydb.sqlite"
-    imports = ("superset.sql_lab",)
+    imports = ("superset.sql_lab", "superset.tasks.scheduler")
     result_backend = "db+sqlite:///celery_results.sqlite"
     worker_prefetch_multiplier = 1
     task_acks_late = False
     task_annotations = {
-        "sql_lab.get_sql_results": {"rate_limit": "100/s"},
-        "email_reports.send": {
-            "rate_limit": "1/s",
-            "time_limit": int(timedelta(seconds=120).total_seconds()),
-            "soft_time_limit": int(timedelta(seconds=150).total_seconds()),
-            "ignore_result": True,
+        "sql_lab.get_sql_results": {
+            "rate_limit": "100/s",
         },
     }
     beat_schedule = {
-        "email_reports.schedule_hourly": {
-            "task": "email_reports.schedule_hourly",
-            "schedule": crontab(minute=1, hour="*"),
-        },
         "reports.scheduler": {
             "task": "reports.scheduler",
             "schedule": crontab(minute="*", hour="*"),
@@ -1114,7 +1121,7 @@ JINJA_CONTEXT_ADDONS: dict[str, Callable[..., Any]] = {}
 # basis. Example value = `{"presto": CustomPrestoTemplateProcessor}`
 CUSTOM_TEMPLATE_PROCESSORS: dict[str, type[BaseTemplateProcessor]] = {}
 
-# Roles that are controlled by the API / Superset and should not be changes
+# Roles that are controlled by the API / Superset and should not be changed
 # by humans.
 ROBOT_PERMISSION_ROLES = ["Public", "Gamma", "Alpha", "Admin", "sql_lab"]
 
@@ -1347,8 +1354,9 @@ WEBDRIVER_WINDOW = {
     "pixel_density": 1,
 }
 
-# An optional override to the default auth hook used to provide auth to the
-# offline webdriver
+# An optional override to the default auth hook used to provide auth to the offline
+# webdriver (when using Selenium) or browser context (when using Playwright - see
+# PLAYWRIGHT_REPORTS_AND_THUMBNAILS feature flag)
 WEBDRIVER_AUTH_FUNC = None
 
 # Any config options to be passed as-is to the webdriver
@@ -1417,8 +1425,15 @@ TALISMAN_ENABLED = False #utils.cast_to_boolean(os.environ.get("TALISMAN_ENABLED
 # If you want Talisman, how do you want it configured??
 TALISMAN_CONFIG = {
     "content_security_policy": {
+        "base-uri": ["'self'"],
         "default-src": ["'self'"],
-        "img-src": ["'self'", "data:"],
+        "img-src": [
+            "'self'",
+            "blob:",
+            "data:",
+            "https://apachesuperset.gateway.scarf.sh",
+            "https://static.scarf.sh/",
+        ],
         "worker-src": ["'self'", "blob:"],
         "connect-src": [
             "'self'",
@@ -1429,18 +1444,25 @@ TALISMAN_CONFIG = {
         "style-src": [
             "'self'",
             "'unsafe-inline'",
-            "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
         ],
         "script-src": ["'self'", "'strict-dynamic'"],
     },
     "content_security_policy_nonce_in": ["script-src"],
     "force_https": False,
+    "session_cookie_secure": False,
 }
 # React requires `eval` to work correctly in dev mode
 TALISMAN_DEV_CONFIG = {
     "content_security_policy": {
+        "base-uri": ["'self'"],
         "default-src": ["'self'"],
-        "img-src": ["'self'", "data:"],
+        "img-src": [
+            "'self'",
+            "blob:",
+            "data:",
+            "https://apachesuperset.gateway.scarf.sh",
+            "https://static.scarf.sh/",
+        ],
         "worker-src": ["'self'", "blob:"],
         "connect-src": [
             "'self'",
@@ -1451,12 +1473,12 @@ TALISMAN_DEV_CONFIG = {
         "style-src": [
             "'self'",
             "'unsafe-inline'",
-            "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
         ],
         "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
     },
     "content_security_policy_nonce_in": ["script-src"],
     "force_https": False,
+    "session_cookie_secure": False,
 }
 
 #
@@ -1468,6 +1490,18 @@ TALISMAN_DEV_CONFIG = {
 SESSION_COOKIE_HTTPONLY = False  # Prevent cookie from being read by frontend JS?
 SESSION_COOKIE_SECURE = False  # Prevent cookie from being transmitted over non-tls?
 SESSION_COOKIE_SAMESITE: Literal["None", "Lax", "Strict"] | None = "Lax"
+# Whether to use server side sessions from flask-session or Flask secure cookies
+SESSION_SERVER_SIDE = False
+# Example config using Redis as the backend for server side sessions
+# from flask_session import RedisSessionInterface
+#
+# SESSION_SERVER_SIDE = True
+# SESSION_USE_SIGNER = True
+# SESSION_TYPE = "redis"
+# SESSION_REDIS = Redis(host="localhost", port=6379, db=0)
+#
+# Other possible config options and backends:
+# # https://flask-session.readthedocs.io/en/latest/config.html
 
 # Cache static resources.
 SEND_FILE_MAX_AGE_DEFAULT = int(timedelta(days=365).total_seconds())
@@ -1524,6 +1558,7 @@ GLOBAL_ASYNC_QUERIES_REDIS_CONFIG = {
 GLOBAL_ASYNC_QUERIES_REDIS_STREAM_PREFIX = "async-events-"
 GLOBAL_ASYNC_QUERIES_REDIS_STREAM_LIMIT = 1000
 GLOBAL_ASYNC_QUERIES_REDIS_STREAM_LIMIT_FIREHOSE = 1000000
+GLOBAL_ASYNC_QUERIES_REGISTER_REQUEST_HANDLERS = True
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_NAME = "async-token"
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SECURE = False
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SAMESITE: None | (
@@ -1531,7 +1566,7 @@ GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SAMESITE: None | (
 ) = None
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_DOMAIN = None
 GLOBAL_ASYNC_QUERIES_JWT_SECRET = "test-secret-change-me"
-GLOBAL_ASYNC_QUERIES_TRANSPORT = "polling"
+GLOBAL_ASYNC_QUERIES_TRANSPORT: Literal["polling", "ws"] = "polling"
 GLOBAL_ASYNC_QUERIES_POLLING_DELAY = int(
     timedelta(milliseconds=500).total_seconds() * 1000
 )
@@ -1593,6 +1628,11 @@ ADVANCED_DATA_TYPES: dict[str, AdvancedDataType] = {
 WELCOME_PAGE_LAST_TAB: (
     Literal["examples", "all"] | tuple[str, list[dict[str, Any]]]
 ) = "all"
+
+# Max allowed size for a zipped file
+ZIPPED_FILE_MAX_SIZE = 100 * 1024 * 1024  # 100MB
+# Max allowed compression ratio for a zipped file
+ZIP_FILE_MAX_COMPRESS_RATIO = 200.0
 
 # Configuration for environment tag shown on the navbar. Setting 'text' to '' will hide the tag.
 # 'color' can either be a hex color code, or a dot-indexed theme color (e.g. error.base)

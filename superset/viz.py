@@ -84,7 +84,7 @@ from superset.utils.hashing import md5_sha_from_str
 
 if TYPE_CHECKING:
     from superset.common.query_context_factory import QueryContextFactory
-    from superset.connectors.base.models import BaseDatasource
+    from superset.connectors.sqla.models import BaseDatasource
 
 config = app.config
 stats_logger = config["STATS_LOGGER"]
@@ -2396,6 +2396,27 @@ class DeckHeatmap(BaseDeckGLViz):
 
     viz_type = "deck_heatmap"
     verbose_name = _("Deck.gl - Heatmap")
+    spatial_control_keys = ["spatial"]
+
+    def get_properties(self, data: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "position": data.get("spatial"),
+            "weight": (data.get(self.metric_label) if self.metric_label else None) or 1,
+        }
+
+    def get_data(self, df: pd.DataFrame) -> VizData:
+        self.metric_label = (  # pylint: disable=attribute-defined-outside-init
+            utils.get_metric_name(self.metric) if self.metric else None
+        )
+        return super().get_data(df)
+
+
+class DeckContour(BaseDeckGLViz):
+
+    """deck.gl's ContourLayer"""
+
+    viz_type = "deck_contour"
+    verbose_name = _("Deck.gl - Contour")
     spatial_control_keys = ["spatial"]
 
     def get_properties(self, data: dict[str, Any]) -> dict[str, Any]:
